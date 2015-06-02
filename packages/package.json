@@ -1,0 +1,19 @@
+{
+  "name": "marionette.toolkit.<%=entryName%>",
+  "version": "<%=version%>",
+  "description": "Marionette.Toolkit’s `<%=exportVarName%>` as a module.",
+  "main": "./<%=exportVarName%>.js",
+  "keywords": [
+    "backbone.marionette",
+    "marionette",
+    "marionettejs",
+    "backbone",
+    "backbonejs",
+    "toolkit",
+    "marionette.toolkit-modularized"
+  ],
+  "author": "Paul Falgout <paul@otterball.com>",
+  "license": "MIT",
+  "repository": "RoundingWellOS/marionette.toolkit",
+  "dependencies": <%=dependencies%>
+}

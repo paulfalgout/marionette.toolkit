@@ -11,6 +11,7 @@ Marionette.Toolkit is a collection of opinionated extensions for
 for complex large scale application problems.  This toolkit was
 built from scripts open sourced from [RoundingWell.com](http://roundingwell.com).
 
+In addition to the full library, each element in Toolkit is available as it's own [npm module](marionette.toolkit-modularized).
 
 ## Documentation
   [StateClass](./docs/state-class.md) - `Marionette.Object` with a `Backbone.Model` for keeping state.

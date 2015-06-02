@@ -11,6 +11,8 @@ const esperanto = require('esperanto');
 const browserify = require('browserify');
 const runSequence = require('run-sequence');
 const source = require('vinyl-source-stream');
+const Promise = require('bluebird');
+const _ = require('lodash');
 const _ = require('underscore');
 
 const manifest = require('./package.json');
@@ -75,45 +77,88 @@ function getBanner() {
   return _.template(banner)(manifest);
 }
 
-// Build two versions of the library
-gulp.task('build', ['lint-src', 'clean'], function(done) {
-  esperanto.bundle({
+function _build(entryFileName, destFolder, expFileName, expVarName, umd){
+  return esperanto.bundle({
     base: 'src',
-    entry: config.entryFileName,
+    entry: entryFileName,
     transform: function(source) {
-      return _.template(source)(manifest);
+      var js_source = _.template(source)(manifest);
+
+      // Poor way of modifying dependency for modular build
+      if(!umd){
+        return js_source.replace('./state-class', 'marionette.toolkit.state-class');
+      }
+
+      return js_source;
     }
   }).then(function(bundle) {
     var banner = getBanner();
 
-    var res = bundle.toUmd({
+    var bundleMethod = umd? 'toUmd' : 'toCjs';
+
+    var res = bundle[bundleMethod]({
       banner: banner,
       sourceMap: true,
-      sourceMapSource: config.entryFileName + '.js',
-      sourceMapFile: exportFileName + '.js',
-      name: config.exportVarName
+      sourceMapSource: entryFileName + '.js',
+      sourceMapFile: expFileName + '.js',
+      name: expVarName
     });
 
     // Write the generated sourcemap
-    mkdirp.sync(destinationFolder);
-    fs.writeFileSync(path.join(destinationFolder, exportFileName + '.js'), res.map.toString());
+    mkdirp.sync(destFolder);
+    fs.writeFileSync(path.join(destFolder, expFileName + '.js'), res.map.toString());
 
-    $.file(exportFileName + '.js', res.code, { src: true })
+    $.file(expFileName + '.js', res.code, { src: true })
       .pipe($.plumber())
       .pipe($.sourcemaps.init({ loadMaps: true }))
       .pipe($.babel({ blacklist: ['useStrict'] }))
       .pipe($.sourcemaps.write('./', {addComment: false}))
-      .pipe(gulp.dest(destinationFolder))
+      .pipe(gulp.dest(destFolder))
       .pipe($.filter(['*', '!**/*.js.map']))
-      .pipe($.rename(exportFileName + '.min.js'))
+      .pipe($.rename(expFileName + '.min.js'))
       .pipe($.uglifyjs({
         outSourceMap: true,
-        inSourceMap: destinationFolder + '/' + exportFileName + '.js.map',
+        inSourceMap: destFolder + '/' + expFileName + '.js.map',
       }))
       .pipe($.header(banner))
-      .pipe(gulp.dest(destinationFolder))
-      .on('end', done);
+      .pipe(gulp.dest(destFolder));
   });
+}
+
+// Build two versions of the library
+gulp.task('build-lib', ['lint-src', 'clean'], function() {
+  return _build(config.entryFileName, destinationFolder, exportFileName, config.exportVarName, 'umd');
+});
+
+function _buildPackage(destFolder, entryName, exportName){
+  var data = {
+    version: manifest.version,
+    exportVarName: exportName,
+    entryName: entryName,
+    dependencies: JSON.stringify(manifest.dependencies, null, 4)
+  };
+
+  gulp.src('./packages/LICENSE')
+    .pipe(gulp.dest(destFolder));
+
+  gulp.src('./packages/README.md')
+    .pipe($.template(data))
+    .pipe(gulp.dest(destFolder));
+
+  gulp.src('./packages/package.json')
+    .pipe($.template(data))
+    .pipe(gulp.dest(destFolder));
+}
+
+gulp.task('build-packages', ['lint-src', 'clean'], function() {
+  var tasks = _.map(config.exportPackageNames, function(entryName, exportName){
+    var destFolder = './packages/' + exportName + '/';
+    var exportVarName = 'Marionette.Toolkit.' + exportName;
+    return _build(entryName, destFolder, exportName, exportVarName)
+      .then(_.partial(_buildPackage, destFolder, entryName, exportName));
+  });
+
+  return Promise.all(tasks);
 });
 
 // Bundle our app for our unit tests
@@ -176,6 +221,8 @@ gulp.task('test-browser', ['build-in-sequence'], function() {
   $.livereload.listen({port: 35729, host: 'localhost', start: true});
   return gulp.watch(['src/**/*.js', 'test/**/*', '.jshintrc', 'test/.jshintrc'], ['build-in-sequence']);
 });
+
+gulp.task('build', ['build-lib', 'build-packages']);
 
 // An alias of test
 gulp.task('default', ['test']);
