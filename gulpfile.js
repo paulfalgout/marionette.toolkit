@@ -2,7 +2,6 @@ const gulp = require('gulp');
 const $ = require('gulp-load-plugins')();
 const del = require('del');
 const path = require('path');
-const isparta = require('isparta');
 const rollup = require('rollup').rollup;
 const multiEntry = require('rollup-plugin-multi-entry');
 const nodeResolve = require('rollup-plugin-node-resolve');
@@ -156,12 +155,12 @@ function _registerBabel() {
 gulp.task('coverage', ['lint-src', 'lint-test'], function(done) {
   _registerBabel();
   gulp.src(['src/*.js'])
-    .pipe($.istanbul({ instrumenter: isparta.Instrumenter }))
-    .pipe($.istanbul.hookRequire())
+    .pipe($.babelIstanbul())
+    .pipe($.babelIstanbul.hookRequire())
     .on('finish', function() {
       return test()
-      .pipe($.istanbul.writeReports())
-      .on('end', done);
+        .pipe($.babelIstanbul.writeReports())
+        .on('end', done);
     });
 });
 
