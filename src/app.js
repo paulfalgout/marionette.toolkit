@@ -3,6 +3,7 @@ import Marionette from 'backbone.marionette';
 import StateMixin from './mixins/state';
 import ChildAppsMixin from './mixins/child-apps';
 import EventListenersMixin from './mixins/event-listeners';
+import ViewEventsMixin from './mixins/view-events';
 
 const ClassOptions = [
   'startWithParent',
@@ -77,9 +78,18 @@ const App = Marionette.Application.extend({
   constructor(options = {}) {
     this.mergeOptions(options, ClassOptions);
 
+    this.options = _.extend({}, _.result(this, 'options'), options);
+
+    // ViewEventMixin
+    this._buildEventProxies();
+
+    // ChildAppsMixin
     this._initChildApps(options);
 
     Marionette.Application.call(this, options);
+
+    // Region may be set in Application constructor
+    this._regionEventMonitor();
 
     if(_.result(this, 'startAfterInitialized')) {
       this.start(options);
@@ -152,12 +162,14 @@ const App = Marionette.Application.extend({
       this.setView(options.view);
     }
 
+    // StateMixin
     this._initState(options);
 
     this.triggerMethod('before:start', options);
 
     this._isRunning = true;
 
+    // StateMixin
     this.delegateStateEvents();
 
     this.triggerStart(options);
@@ -240,7 +252,7 @@ const App = Marionette.Application.extend({
    */
   destroy() {
     if(this._isDestroyed) {
-      return;
+      return this;
     }
 
     this.stop();
@@ -248,6 +260,8 @@ const App = Marionette.Application.extend({
     delete this._view;
 
     Marionette.Object.prototype.destroy.apply(this, arguments);
+
+    return this;
   },
 
   /**
@@ -260,9 +274,23 @@ const App = Marionette.Application.extend({
    * @returns {Region}
    */
   setRegion(region) {
+    if(this._region) {
+      this.stopListening(this._region);
+    }
+
     this._region = region;
 
+    this._regionEventMonitor();
+
     return region;
+  },
+
+  _regionEventMonitor() {
+    this.listenTo(this._region, 'before:show', this._onBeforeShow);
+  },
+
+  _onBeforeShow(region, view) {
+    this.setView(view);
   },
 
   /**
@@ -293,7 +321,18 @@ const App = Marionette.Application.extend({
    * @returns {View}
    */
   setView(view) {
+    if(this._view === view) {
+      return view;
+    }
+
+    if(this._view) {
+      this.stopListening(this._view);
+    }
+
     this._view = view;
+
+    // ViewEventsMixin
+    this._proxyViewEvents(view);
 
     return view;
   },
@@ -307,12 +346,6 @@ const App = Marionette.Application.extend({
    * @returns {View}
    */
   getView() {
-    const region = this.getRegion();
-
-    if(region && region.currentView) {
-      return region.currentView;
-    }
-
     return this._view;
   },
 
@@ -360,6 +393,6 @@ const App = Marionette.Application.extend({
   }
 });
 
-_.extend(App.prototype, StateMixin, ChildAppsMixin, EventListenersMixin);
+_.extend(App.prototype, StateMixin, ChildAppsMixin, EventListenersMixin, ViewEventsMixin);
 
 export default App;

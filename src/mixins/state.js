@@ -32,6 +32,8 @@ export default {
   initState(options = {}) {
     this._initState(options);
     this.delegateStateEvents();
+
+    return this;
   },
 
   /**
@@ -51,8 +53,6 @@ export default {
     this._stateModel = new StateModel(options.state);
 
     this._setEventHandlers();
-
-    return this;
   },
 
   /**
